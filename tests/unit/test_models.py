@@ -350,3 +350,112 @@ class TestPromotionData:
 
         # 0.05 (striked) + 1.5 (10 rules) + 0.25 (manual) = 1.8, capped at 1.0
         assert promo.estimate_server_impact() == 1.0
+
+    def test_calculate_complexity_manual_code_only(self) -> None:
+        """Test complexity with manual code input only (MEDIUM)."""
+        promo = PromotionData(
+            page_type="product",
+            url="https://example.com/cart",
+            has_manual_code_input=True,
+            complexity="MEDIUM",
+            estimated_server_impact=0.25,
+        )
+
+        assert promo.calculate_complexity() == "MEDIUM"
+        assert promo.auto_cart_rules == []
+        assert promo.striked_price is None
+
+    def test_calculate_complexity_manual_plus_one_rule(self) -> None:
+        """Test complexity with manual code + 1 cart rule (HIGH)."""
+        promo = PromotionData(
+            page_type="product",
+            url="https://example.com/test",
+            auto_cart_rules=[
+                AutoCartRule(
+                    rule_id=1, rule_name="RULE1", amount=10.0, discount_type="amount"
+                )
+            ],
+            has_manual_code_input=True,
+            complexity="HIGH",
+            estimated_server_impact=0.40,
+        )
+
+        assert promo.calculate_complexity() == "HIGH"
+
+    def test_calculate_complexity_no_promotions(self) -> None:
+        """Test complexity with no promotions at all (LOW)."""
+        promo = PromotionData(
+            page_type="product",
+            url="https://example.com/test",
+            complexity="LOW",
+            estimated_server_impact=0.0,
+        )
+
+        assert promo.calculate_complexity() == "LOW"
+        assert promo.estimate_server_impact() == 0.0
+
+    def test_estimate_server_impact_combined(self) -> None:
+        """Test server impact with all promotion types combined."""
+        promo = PromotionData(
+            page_type="product",
+            url="https://example.com/test",
+            striked_price=StrikedPriceData(
+                regular_price=100.0, current_price=85.0, discount_percentage=15.0
+            ),
+            auto_cart_rules=[
+                AutoCartRule(
+                    rule_id=1, rule_name="RULE1", amount=10.0, discount_type="amount"
+                ),
+                AutoCartRule(
+                    rule_id=2,
+                    rule_name="RULE2",
+                    amount=5.0,
+                    discount_type="percentage",
+                ),
+            ],
+            has_manual_code_input=True,
+            complexity="HIGH",
+            estimated_server_impact=0.0,
+        )
+
+        # 0.05 (striked) + 0.30 (2 rules) + 0.25 (manual) = 0.60
+        assert promo.estimate_server_impact() == 0.60
+
+    def test_estimate_server_impact_three_rules(self) -> None:
+        """Test server impact with 3 cart rules."""
+        promo = PromotionData(
+            page_type="product",
+            url="https://example.com/test",
+            auto_cart_rules=[
+                AutoCartRule(
+                    rule_id=i + 1,
+                    rule_name=f"RULE{i}",
+                    amount=10.0,
+                    discount_type="amount",
+                )
+                for i in range(3)
+            ],
+            complexity="HIGH",
+            estimated_server_impact=0.0,
+        )
+
+        # 3 rules * 0.15 = 0.45 (use approximate comparison for float precision)
+        assert abs(promo.estimate_server_impact() - 0.45) < 0.01
+
+    def test_calculate_complexity_striked_plus_manual(self) -> None:
+        """Test complexity with striked price + manual code (MEDIUM)."""
+        promo = PromotionData(
+            page_type="product",
+            url="https://example.com/test",
+            striked_price=StrikedPriceData(
+                regular_price=100.0, current_price=85.0, discount_percentage=15.0
+            ),
+            has_manual_code_input=True,
+            complexity="MEDIUM",
+            estimated_server_impact=0.30,
+        )
+
+        # Striked only is LOW, but adding manual makes it MEDIUM
+        assert promo.calculate_complexity() == "MEDIUM"
+        # 0.05 (striked) + 0.25 (manual) = 0.30
+        assert promo.estimate_server_impact() == 0.30

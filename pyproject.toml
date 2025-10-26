@@ -63,6 +63,9 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-report=html",
 ]
+markers = [
+    "integration: Integration tests requiring real PrestaShop environment (deselect with '-m \"not integration\"')",
+]
 
 [tool.coverage.run]
 source = ["src"]

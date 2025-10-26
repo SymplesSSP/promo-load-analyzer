@@ -5,8 +5,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.promo_scraper import (
+    _check_manual_code_input_on_page,
     _extract_auto_cart_rules_from_page,
     _extract_striked_price_from_page,
+    detect_manual_code_input,
     scrape_auto_cart_rules,
     scrape_striked_price,
 )
@@ -500,3 +502,163 @@ class TestExtractAutoCartRulesFromPage:
 
         assert len(result) == 1
         assert result[0].rule_id == 7
+
+
+class TestDetectManualCodeInput:
+    """Tests for detect_manual_code_input function."""
+
+    @pytest.mark.asyncio
+    async def test_detect_manual_code_input_found(self) -> None:
+        """Test detection when manual code input exists."""
+        mock_page = AsyncMock()
+        mock_browser = AsyncMock()
+        mock_playwright = MagicMock()
+        mock_chromium = AsyncMock()
+
+        mock_chromium.launch.return_value = mock_browser
+        mock_browser.new_page.return_value = mock_page
+        mock_playwright.chromium = mock_chromium
+
+        # Mock input element found
+        mock_input = AsyncMock()
+        mock_page.query_selector.return_value = mock_input
+
+        with patch("src.promo_scraper.async_playwright") as mock_async_pw:
+            mock_async_pw.return_value.__aenter__.return_value = mock_playwright
+
+            result = await detect_manual_code_input("https://shop.com/cart")
+
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_detect_no_manual_code_input(self) -> None:
+        """Test detection when no manual code input exists."""
+        mock_page = AsyncMock()
+        mock_browser = AsyncMock()
+        mock_playwright = MagicMock()
+        mock_chromium = AsyncMock()
+
+        mock_chromium.launch.return_value = mock_browser
+        mock_browser.new_page.return_value = mock_page
+        mock_playwright.chromium = mock_chromium
+
+        # No input found
+        mock_page.query_selector.return_value = None
+
+        with patch("src.promo_scraper.async_playwright") as mock_async_pw:
+            mock_async_pw.return_value.__aenter__.return_value = mock_playwright
+
+            result = await detect_manual_code_input("https://shop.com/product")
+
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_detect_handles_exception(self) -> None:
+        """Test that exceptions are raised properly."""
+        mock_playwright = MagicMock()
+        mock_chromium = AsyncMock()
+        mock_chromium.launch.side_effect = Exception("Browser launch failed")
+        mock_playwright.chromium = mock_chromium
+
+        with patch("src.promo_scraper.async_playwright") as mock_async_pw:
+            mock_async_pw.return_value.__aenter__.return_value = mock_playwright
+
+            with pytest.raises(Exception, match="Browser launch failed"):
+                await detect_manual_code_input("https://shop.com/cart")
+
+
+class TestCheckManualCodeInputOnPage:
+    """Tests for _check_manual_code_input_on_page function."""
+
+    @pytest.mark.asyncio
+    async def test_check_with_discount_name_input(self) -> None:
+        """Test detection with discount_name input field."""
+        mock_page = AsyncMock()
+
+        mock_input = AsyncMock()
+        mock_page.query_selector.return_value = mock_input
+
+        result = await _check_manual_code_input_on_page(mock_page)
+
+        assert result is True
+        mock_page.query_selector.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_check_no_input_field(self) -> None:
+        """Test detection when no input field exists."""
+        mock_page = AsyncMock()
+        mock_page.query_selector.return_value = None
+
+        result = await _check_manual_code_input_on_page(mock_page)
+
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_check_with_alternative_selector(self) -> None:
+        """Test detection using alternative selectors."""
+        mock_page = AsyncMock()
+
+        call_count = 0
+        mock_input = AsyncMock()
+
+        async def mock_query_selector(selector: str):  # type: ignore
+            nonlocal call_count
+            call_count += 1
+            # First selector fails, second succeeds
+            if call_count == 1:
+                return None
+            return mock_input
+
+        mock_page.query_selector.side_effect = mock_query_selector
+
+        result = await _check_manual_code_input_on_page(mock_page)
+
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_check_with_voucher_input(self) -> None:
+        """Test detection with voucher input field."""
+        mock_page = AsyncMock()
+
+        # Return None for first selector, mock input for second
+        call_count = 0
+        mock_input = AsyncMock()
+
+        async def mock_query_selector(selector: str):  # type: ignore
+            nonlocal call_count
+            call_count += 1
+            if "discount_name" in selector:
+                return None
+            elif "voucher" in selector:
+                return mock_input
+            return None
+
+        mock_page.query_selector.side_effect = mock_query_selector
+
+        result = await _check_manual_code_input_on_page(mock_page)
+
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_check_handles_selector_exception(self) -> None:
+        """Test that selector exceptions are handled gracefully."""
+        mock_page = AsyncMock()
+
+        # First selector throws exception, should try next selectors
+        call_count = 0
+        mock_input = AsyncMock()
+
+        async def mock_query_selector(selector: str):  # type: ignore
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise Exception("Selector error")
+            elif call_count == 2:
+                return mock_input
+            return None
+
+        mock_page.query_selector.side_effect = mock_query_selector
+
+        result = await _check_manual_code_input_on_page(mock_page)
+
+        assert result is True

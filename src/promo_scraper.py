@@ -351,3 +351,90 @@ async def _extract_auto_cart_rules_from_page(
             continue
 
     return cart_rules
+
+
+async def detect_manual_code_input(url: str, timeout: int = 30000) -> bool:
+    """Detect if manual promo code input field exists on page.
+
+    This function uses Playwright to load the page and check for
+    manual promo code input fields in PrestaShop.
+
+    Args:
+        url: Product or cart page URL
+        timeout: Page load timeout in milliseconds (default: 30000)
+
+    Returns:
+        True if manual code input found, False otherwise
+
+    Raises:
+        Exception: If browser automation fails
+
+    Example:
+        >>> has_manual = await detect_manual_code_input("https://shop.com/cart")
+        >>> if has_manual:
+        ...     print("Manual promo code input available")
+    """
+    logger.debug(f"Detecting manual code input on: {url}")
+
+    async with async_playwright() as p:
+        browser: Browser | None = None
+        try:
+            # Launch browser
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
+
+            # Navigate to page
+            await page.goto(url, timeout=timeout, wait_until="domcontentloaded")
+            logger.debug(f"Page loaded: {url}")
+
+            # Check for manual code input
+            has_input = await _check_manual_code_input_on_page(page)
+
+            if has_input:
+                logger.info(f"Found manual promo code input on {url}")
+            else:
+                logger.debug(f"No manual promo code input found on: {url}")
+
+            return has_input
+
+        except Exception as e:
+            logger.error(f"Failed to detect manual code input on {url}: {e}")
+            raise
+        finally:
+            if browser:
+                await browser.close()
+
+
+async def _check_manual_code_input_on_page(page: Page) -> bool:
+    """Check if manual promo code input exists on a loaded page.
+
+    Args:
+        page: Playwright Page object
+
+    Returns:
+        True if manual code input found, False otherwise
+    """
+    # Common PrestaShop selectors for promo code input
+    promo_code_selectors = [
+        "input[name='discount_name']",
+        "input[name='voucher']",
+        "input[placeholder*='promo' i]",
+        "input[placeholder*='code' i]",
+        "input[placeholder*='coupon' i]",
+        ".promo-code input",
+        "#promo-code",
+        ".discount-code input",
+    ]
+
+    # Try each selector
+    for selector in promo_code_selectors:
+        try:
+            element = await page.query_selector(selector)
+            if element:
+                logger.debug(f"Found promo code input with selector: {selector}")
+                return True
+        except Exception as e:
+            logger.debug(f"Selector '{selector}' failed: {e}")
+            continue
+
+    return False

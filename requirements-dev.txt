@@ -12,3 +12,4 @@ ruff==0.1.6
 
 # Type Stubs
 types-requests==2.31.0
+types-beautifulsoup4==4.12.0

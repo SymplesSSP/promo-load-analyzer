@@ -1,12 +1,15 @@
 """Page type detection module.
 
-This module detects PrestaShop page types from URLs using regex patterns.
+This module detects PrestaShop page types from URLs using regex patterns
+and DOM analysis for ambiguous cases.
 Supports product, category, catalog (homepage variants), and unknown pages.
 """
 
 import re
 from urllib.parse import urlparse
 
+import requests
+from bs4 import BeautifulSoup
 from loguru import logger
 
 from src.constants import (
@@ -184,3 +187,102 @@ def is_valid_prestashop_url(url: str) -> bool:
         return bool(parsed.scheme in ("http", "https") and parsed.netloc)
     except Exception:
         return False
+
+
+def detect_page_type_from_dom(url: str, timeout: int = 10) -> PageDetectionResult:
+    """Detect page type using DOM analysis when regex is ambiguous.
+
+    This function fetches the page HTML and analyzes the DOM structure to
+    determine the page type. Used as a fallback when URL patterns are unclear.
+
+    Args:
+        url: URL to analyze
+        timeout: Request timeout in seconds (default: 10)
+
+    Returns:
+        PageDetectionResult with detection_method="dom_analysis"
+
+    Raises:
+        requests.RequestException: If page cannot be fetched
+        ValueError: If URL is invalid
+
+    Example:
+        >>> result = detect_page_type_from_dom("https://shop.com/page")
+        >>> result.detection_method
+        'dom_analysis'
+    """
+    if not is_valid_prestashop_url(url):
+        raise ValueError(f"Invalid URL: {url}")
+
+    logger.debug(f"Fetching page for DOM analysis: {url}")
+
+    try:
+        # Fetch page with timeout
+        response = requests.get(url, timeout=timeout)
+        response.raise_for_status()
+    except requests.RequestException as e:
+        logger.error(f"Failed to fetch page {url}: {e}")
+        raise
+
+    # Parse HTML
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    # Initialize detection flags
+    has_add_to_cart = False
+    has_promo_code_input = False
+    detected_type = PAGE_TYPE_UNKNOWN
+    confidence = 0.5
+
+    # Check for add-to-cart button (strong indicator of product page)
+    add_to_cart_selectors = [
+        ".add-to-cart",
+        "button[data-button-action='add-to-cart']",
+        "#add-to-cart-or-refresh",
+    ]
+
+    for selector in add_to_cart_selectors:
+        if soup.select(selector):
+            has_add_to_cart = True
+            detected_type = PAGE_TYPE_PRODUCT
+            confidence = 0.9
+            logger.info(f"Detected product page via add-to-cart button: {url}")
+            break
+
+    # Check for promo code input
+    promo_input_selectors = [
+        "input[name='discount_name']",
+        "#discount_name",
+        ".promo-code",
+    ]
+
+    for selector in promo_input_selectors:
+        if soup.select(selector):
+            has_promo_code_input = True
+            logger.debug(f"Detected promo code input on: {url}")
+            break
+
+    # Check for category indicators if not product
+    if not has_add_to_cart:
+        category_indicators = [
+            ".products",
+            ".product-miniature",
+            "#products",
+            ".category-products",
+        ]
+
+        for selector in category_indicators:
+            if soup.select(selector):
+                detected_type = PAGE_TYPE_CATEGORY
+                confidence = 0.8
+                logger.info(f"Detected category page via product list: {url}")
+                break
+
+    # Return detection result
+    return PageDetectionResult(
+        page_type=detected_type,  # type: ignore[arg-type]
+        detection_method="dom_analysis",
+        url=url,  # type: ignore[arg-type]
+        confidence=confidence,
+        has_add_to_cart=has_add_to_cart,
+        has_promo_code_input=has_promo_code_input,
+    )

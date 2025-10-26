@@ -81,10 +81,11 @@ HTTP_SERVER_ERROR: Final[int] = 500
 
 SUCCESS_STATUS_CODES: Final[tuple[int, ...]] = (HTTP_OK, HTTP_CREATED)
 
-# Regex Patterns
-REGEX_CATEGORY_PAGE: Final[str] = r"/\d+-[a-z0-9-]+"
-REGEX_PRODUCT_PAGE: Final[str] = r"/[a-z0-9-]+-\d+\.html"
+# Regex Patterns for Page Detection
+REGEX_PRODUCT_PAGE: Final[str] = r"/(\d+)-[\w-]+\.html"  # Captures product ID
+REGEX_CATEGORY_PAGE: Final[str] = r"/[\w-]+/(\d+)"  # Captures category ID
 REGEX_CATALOG_PAGE: Final[str] = r"/(nouveautes|promotions|meilleures-ventes)"
+REGEX_HOMEPAGE: Final[str] = r"^https?://[^/]+/?$"  # Matches root URL only
 
 # PrestaShop Selectors
 SELECTOR_PROMO_BADGE: Final[str] = ".product-flag.discount"

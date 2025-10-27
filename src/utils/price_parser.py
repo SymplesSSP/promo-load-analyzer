@@ -38,8 +38,11 @@ def parse_price_string(price_str: str) -> float | None:
     cleaned = re.sub(r"[€$£¥]", "", cleaned)
     cleaned = cleaned.strip()
 
-    # Remove non-breaking spaces and regular spaces
-    cleaned = cleaned.replace("\xa0", "").replace(" ", "")
+    # Remove all types of spaces (regular, non-breaking, narrow no-break, etc.)
+    cleaned = cleaned.replace("\xa0", "")  # Non-breaking space (U+00A0)
+    cleaned = cleaned.replace("\u202f", "")  # Narrow no-break space (U+202F)
+    cleaned = cleaned.replace("\u2009", "")  # Thin space (U+2009)
+    cleaned = cleaned.replace(" ", "")  # Regular space
 
     if not cleaned:
         return None

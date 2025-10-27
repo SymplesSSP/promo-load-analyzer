@@ -13,9 +13,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Current Status
 - ✅ **229/229 unit tests passing** (100%)
-- ✅ **Validated on production** (ipln.fr)
+- ✅ **Validated on production** (ipln.fr) and staging (recette.ipln.fr)
 - ✅ **SONY GM-1 promo detected** correctly (300€ auto cart rule)
+- ✅ **Panasonic S5 II promo detected** correctly (400€ striked price with Unicode spaces)
 - ✅ **Grade A performance** (97.1/100) on full test with cart
+- ✅ **French price formats** fully supported (U+00A0, U+202F, U+2009)
 - ✅ **README enhanced** with GitHub-standard styling and badges
 
 ## Project Overview
@@ -296,6 +298,7 @@ Use regex patterns on URLs:
 - Implemented active polling instead of fixed timeout (handles variable AJAX response times)
 - Added multiple click strategies to handle overlays and disabled buttons
 - Improved amount parsing to handle both "15%" strings and numeric 399.996 values
+- **Added Unicode space support** (U+202F, U+2009) for French price formatting (e.g., "1 959,00 €")
 
 ### K6 Template Variables (inject dynamically)
 - `{target_users}`: 50/200/500
@@ -340,6 +343,52 @@ playwright install chromium
 **Symptoms:** Test completes but metrics show 0 requests/iterations
 **Root Cause:** K6 `--out json` only outputs Points, not aggregated metrics
 **Solution:** Tool now uses `--summary-export` flag for proper metrics parsing
+
+### Issue: "Failed to parse price string" with French prices
+**Symptoms:** Price parsing fails with `could not convert string to float: '1\u202f959.00'`
+**Root Cause:** French typography uses NARROW NO-BREAK SPACE (U+202F) as thousands separator
+**Example:** `"1 959,00 €"` (space = U+202F, not regular space)
+**Solution:**
+- Parser now supports all Unicode space variants:
+  - U+00A0: Non-breaking space
+  - U+202F: Narrow no-break space (French standard)
+  - U+2009: Thin space
+  - Regular space
+**Tested on:** Panasonic Lumix S5 II (1 959,00 € → 1 559,00 €)
+
+## Price Parsing Reference
+
+### Supported Price Formats
+The price parser handles all French and European price formats with full Unicode support:
+
+**Examples:**
+```python
+"1 234,56 €"     → 1234.56  # Regular space
+"1 234.56 €"     → 1234.56  # US format
+"1\xa0234,56 €"  → 1234.56  # Non-breaking space (U+00A0)
+"1\u202f234,56 €" → 1234.56  # Narrow no-break space (U+202F) - French standard
+"1\u2009234,56 €" → 1234.56  # Thin space (U+2009)
+"1234,56"        → 1234.56  # No thousands separator
+"1.234,56"       → 1234.56  # French format with dot
+"1,234.56"       → 1234.56  # US format
+```
+
+**Unicode Spaces Handled:**
+- `\x20` - Regular space
+- `\xa0` - Non-breaking space (U+00A0) - HTML `&nbsp;`
+- `\u202f` - Narrow no-break space (U+202F) - **French typography standard**
+- `\u2009` - Thin space (U+2009)
+
+**Currency Symbols Stripped:** €, $, £, ¥
+
+**Detection Logic:**
+1. Strip all spaces and currency symbols
+2. If both comma and dot present, identify which is decimal separator (rightmost)
+3. French format (comma = decimal): "1.234,56" → remove dots, convert comma to dot
+4. US format (dot = decimal): "1,234.56" → remove commas
+5. Single separator: detect if decimal (≤2 digits after) or thousands
+
+**Implementation:** `src/utils/price_parser.py`
 
 ## Technology Stack
 

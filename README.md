@@ -410,6 +410,7 @@ Ctrl+C Ctrl+C
 - **Critical:** Cart update detection now uses active polling (15s max) instead of fixed 5s timeout
 - **Critical:** Add-to-cart click now waits 1s for page stabilization and uses 3-level fallback strategy
 - **Critical:** K6 staging calculation fixed for short duration tests (≤2 min) - no more 0-minute sustain phase
+- **Critical:** Unicode space support added for French price parsing (U+202F, U+2009) - fixes "1 959,00 €" format
 - Page type detection regex updated to support modern PrestaShop URLs without .html extension
 - Percentage discount parsing now handles "15%" strings and numeric 399.996 amounts correctly
 - JavaScript exception handling added for all `page.evaluate()` calls in Playwright
@@ -424,7 +425,9 @@ Ctrl+C Ctrl+C
 - All 229 unit tests passing (100%)
 - Production testing validated on ipln.fr
 - SONY GM-1 promotion (300€) correctly detected with Grade A performance (97.1/100)
-- Capacity estimation working: ~166 concurrent users with 71% margin
+- Panasonic S5 II striked price (-20%, 400€) correctly detected after Unicode fix
+- Capacity estimation working: ~166 concurrent users with 71% margin on optimized pages
+- French price formats with Unicode spaces (U+202F) now fully supported
 
 ---
 

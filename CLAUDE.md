@@ -2,6 +2,22 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Recent Changes & Fixes (2025-10-27)
+
+### Critical Bug Fixes Deployed
+1. **K6 Metrics Parsing** - Added `--summary-export` flag to properly extract aggregated metrics
+2. **K6 Staging Config** - Fixed 0-minute sustain phase for short duration tests (≤2 min)
+3. **Promo Cart Detection** - Implemented active polling and multi-strategy clicking for reliable detection
+4. **Page Type Detection** - Updated regex to support modern PrestaShop URLs without .html extension
+5. **Percentage Parsing** - Fixed parsing of discount strings like "15%" and amounts like 399.996
+
+### Current Status
+- ✅ **229/229 unit tests passing** (100%)
+- ✅ **Validated on production** (ipln.fr)
+- ✅ **SONY GM-1 promo detected** correctly (300€ auto cart rule)
+- ✅ **Grade A performance** (97.1/100) on full test with cart
+- ✅ **README enhanced** with GitHub-standard styling and badges
+
 ## Project Overview
 
 **Promo Load Analyzer** - Automated load testing tool for PrestaShop promotional campaigns, orchestrated by Claude Code via natural language interface.
@@ -266,9 +282,20 @@ Use regex patterns on URLs:
 1. **Striked Price:** Look for `.regular-price` CSS selector
 2. **Auto Cart Rules:**
    - Playwright: navigate to page
-   - Simulate add-to-cart action
+   - **Wait 1s for page stabilization** (critical for success)
+   - Simulate add-to-cart with **3-level fallback**: normal click → force click → JavaScript click
+   - Wait for cart modal `#blockcart-modal` (optional, non-blocking)
+   - **Poll cart state** every 500ms for max 15s (instead of fixed 5s timeout)
    - Extract `window.prestashop.cart.vouchers.added` from page context
+   - Handles both dict `{"id": {voucher}}` and array formats
+   - Parses percentage strings like "15%" and numeric values
 3. **Manual Codes:** Detect input `[name="discount_name"]`
+
+**Critical fixes (2025-10-27):**
+- Added 1s stabilization delay before clicking add-to-cart (prevents click failures)
+- Implemented active polling instead of fixed timeout (handles variable AJAX response times)
+- Added multiple click strategies to handle overlays and disabled buttons
+- Improved amount parsing to handle both "15%" strings and numeric 399.996 values
 
 ### K6 Template Variables (inject dynamically)
 - `{target_users}`: 50/200/500
@@ -283,6 +310,36 @@ Use regex patterns on URLs:
 3. Max users = conservative estimate in MVP
 4. Cloudflare rate limiting without IP whitelist
 5. PROD tests limited to 3h-6h window
+
+## Known Issues & Troubleshooting
+
+### Issue: "Cart not updated after add-to-cart click"
+**Symptoms:** Auto cart rules not detected, warning in logs
+**Root Cause:** AJAX response takes longer than expected, page not fully stabilized
+**Solution:**
+- Tool now waits 1s for page stabilization before clicking
+- Implements active polling (500ms × 30 attempts = 15s max)
+- Uses 3-level click fallback (normal → force → JavaScript)
+
+### Issue: "No striked price found" when promotion is visible
+**Symptoms:** Promo badge visible (e.g., "-300€") but not detected
+**Root Cause:** Badge promos use different HTML structure than striked prices
+**Current Status:** Badge promos require cart rules detection (add-to-cart simulation)
+**Workaround:** Use `--mode full` to trigger cart rules detection
+
+### Issue: Playwright "Target page closed" error
+**Symptoms:** Immediate crash on macOS Sequoia
+**Root Cause:** Outdated Playwright version (< 1.55)
+**Solution:** Update to Playwright 1.55+ and reinstall browsers
+```bash
+pip install playwright==1.55.0
+playwright install chromium
+```
+
+### Issue: K6 returns 0 iterations despite success
+**Symptoms:** Test completes but metrics show 0 requests/iterations
+**Root Cause:** K6 `--out json` only outputs Points, not aggregated metrics
+**Solution:** Tool now uses `--summary-export` flag for proper metrics parsing
 
 ## Technology Stack
 

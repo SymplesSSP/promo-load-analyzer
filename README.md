@@ -392,13 +392,39 @@ Ctrl+C Ctrl+C
 - **[Product Requirements](docs/prd.md)** - Full PRD with business context
 - **[Architecture](docs/architecture.md)** - Technical design & decisions
 - **[CLAUDE.md](CLAUDE.md)** - Claude Code AI instructions
-- **[Changelog](CHANGELOG.md)** - Release notes & version history
 
 ### Additional Resources
 
 - [K6 Documentation](https://k6.io/docs/)
 - [Playwright Documentation](https://playwright.dev/)
 - [PrestaShop Web Services](https://devdocs.prestashop-project.org/8/webservice/)
+
+---
+
+## 📝 Changelog
+
+### [Unreleased] - 2025-10-27
+
+#### 🐛 Fixed
+- **Critical:** K6 metrics parsing now uses `--summary-export` flag for proper aggregated metrics extraction
+- **Critical:** Cart update detection now uses active polling (15s max) instead of fixed 5s timeout
+- **Critical:** Add-to-cart click now waits 1s for page stabilization and uses 3-level fallback strategy
+- **Critical:** K6 staging calculation fixed for short duration tests (≤2 min) - no more 0-minute sustain phase
+- Page type detection regex updated to support modern PrestaShop URLs without .html extension
+- Percentage discount parsing now handles "15%" strings and numeric 399.996 amounts correctly
+- JavaScript exception handling added for all `page.evaluate()` calls in Playwright
+
+#### ✨ Added
+- Enhanced README with GitHub-standard styling, badges, and comprehensive documentation
+- Troubleshooting section in CLAUDE.md with known issues and solutions
+- Modal detection for cart updates with optional non-blocking wait
+- Debug logging for click strategies and cart update timing
+
+#### ✅ Validated
+- All 229 unit tests passing (100%)
+- Production testing validated on ipln.fr
+- SONY GM-1 promotion (300€) correctly detected with Grade A performance (97.1/100)
+- Capacity estimation working: ~166 concurrent users with 71% margin
 
 ---
 

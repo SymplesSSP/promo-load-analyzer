@@ -251,7 +251,26 @@ async def _extract_auto_cart_rules_from_page(
             button = await page.query_selector(selector)
             if button:
                 logger.debug(f"Found add-to-cart button with selector: {selector}")
-                await button.click()
+
+                # Wait for button to be enabled and stable
+                await page.wait_for_selector(selector, state="visible", timeout=2000)
+                await page.wait_for_timeout(1000)  # Let page settle
+
+                # Try clicking with different strategies
+                try:
+                    # First try: normal click
+                    await button.click(timeout=5000)
+                    logger.debug("Clicked with normal click")
+                except Exception:
+                    try:
+                        # Second try: force click (ignore overlays)
+                        await button.click(force=True, timeout=5000)
+                        logger.debug("Clicked with force=True")
+                    except Exception:
+                        # Third try: JavaScript click
+                        await button.evaluate("el => el.click()")
+                        logger.debug("Clicked with JavaScript")
+
                 clicked = True
                 break
         except Exception as e:
@@ -264,17 +283,31 @@ async def _extract_auto_cart_rules_from_page(
 
     # Wait for cart update (PrestaShop typically updates cart via AJAX)
     try:
-        # Wait longer for AJAX to complete and cart to update
-        # PrestaShop updates window.prestashop.cart after add-to-cart
-        await page.wait_for_timeout(5000)  # Give more time for AJAX
+        # Wait for modal to appear (indicates cart update started)
+        try:
+            await page.wait_for_selector("#blockcart-modal", state="visible", timeout=3000)
+            logger.debug("Cart modal appeared")
+        except PlaywrightTimeoutError:
+            logger.debug("No cart modal detected, continuing...")
 
-        # Optionally wait for cart products count to be > 0
-        cart_has_products = await page.evaluate(
-            "window.prestashop && window.prestashop.cart && window.prestashop.cart.products_count > 0"
-        )
+        # Poll for cart update (max 15 seconds)
+        # PrestaShop updates window.prestashop.cart after add-to-cart
+        max_attempts = 30  # 30 attempts * 500ms = 15s max
+        cart_has_products = False
+
+        for attempt in range(max_attempts):
+            cart_has_products = await page.evaluate(
+                "window.prestashop && window.prestashop.cart && window.prestashop.cart.products_count > 0"
+            )
+            if cart_has_products:
+                logger.debug(f"Cart updated after {(attempt + 1) * 0.5:.1f}s")
+                break
+            await page.wait_for_timeout(500)  # Wait 500ms between checks
+
         if not cart_has_products:
-            logger.warning("Cart not updated after add-to-cart click")
+            logger.warning("Cart not updated after add-to-cart click (timeout 15s)")
             return []
+
     except PlaywrightTimeoutError:
         logger.warning("Timeout waiting for cart update")
         return []

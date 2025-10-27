@@ -190,6 +190,16 @@ class IntensityConfig(BaseModel):
         Returns:
             List of Stage objects for ramp-up, sustain, ramp-down
         """
+        # For very short tests (≤2 min), use simplified staging
+        if self.duration_minutes <= 2:
+            # No ramp-up for short tests, maximize sustain time
+            sustain = self.duration_minutes
+            return [
+                Stage(duration=f"{sustain}m", target=self.vus),
+                Stage(duration="30s", target=0),  # Quick ramp-down
+            ]
+
+        # For longer tests, use ramp-up + sustain + ramp-down
         ramp_up = max(1, self.duration_minutes // 5)  # 20% of time for ramp-up
         sustain = self.duration_minutes - ramp_up - 1  # Majority sustains load
 

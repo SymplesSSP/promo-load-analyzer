@@ -46,7 +46,6 @@ async def scrape_striked_price(url: str, timeout: int = 30000) -> StrikedPriceDa
     logger.debug(f"Scraping striked price from: {url}")
 
     async with async_playwright() as p:
-        browser: Browser | None = None
         try:
             # Launch browser
             browser = await p.chromium.launch(headless=True)
@@ -72,9 +71,7 @@ async def scrape_striked_price(url: str, timeout: int = 30000) -> StrikedPriceDa
         except Exception as e:
             logger.error(f"Failed to scrape striked price from {url}: {e}")
             raise
-        finally:
-            if browser:
-                await browser.close()
+        # No finally needed - async_playwright() context manager handles cleanup
 
 
 async def _extract_striked_price_from_page(page: Page) -> StrikedPriceData | None:
@@ -199,7 +196,6 @@ async def scrape_auto_cart_rules(url: str, timeout: int = 30000) -> list[AutoCar
     logger.debug(f"Scraping auto cart rules from: {url}")
 
     async with async_playwright() as p:
-        browser: Browser | None = None
         try:
             # Launch browser
             browser = await p.chromium.launch(headless=True)
@@ -224,9 +220,7 @@ async def scrape_auto_cart_rules(url: str, timeout: int = 30000) -> list[AutoCar
         except Exception as e:
             logger.error(f"Failed to scrape auto cart rules from {url}: {e}")
             raise
-        finally:
-            if browser:
-                await browser.close()
+        # No finally needed - async_playwright() context manager handles cleanup
 
 
 async def _extract_auto_cart_rules_from_page(
@@ -270,10 +264,22 @@ async def _extract_auto_cart_rules_from_page(
 
     # Wait for cart update (PrestaShop typically updates cart via AJAX)
     try:
-        # Wait for cart modal or cart update indicator
-        await page.wait_for_timeout(2000)  # Give AJAX time to complete
+        # Wait longer for AJAX to complete and cart to update
+        # PrestaShop updates window.prestashop.cart after add-to-cart
+        await page.wait_for_timeout(5000)  # Give more time for AJAX
+
+        # Optionally wait for cart products count to be > 0
+        cart_has_products = await page.evaluate(
+            "window.prestashop && window.prestashop.cart && window.prestashop.cart.products_count > 0"
+        )
+        if not cart_has_products:
+            logger.warning("Cart not updated after add-to-cart click")
+            return []
     except PlaywrightTimeoutError:
         logger.warning("Timeout waiting for cart update")
+        return []
+    except Exception as e:
+        logger.warning(f"Failed to evaluate cart state: {e}")
         return []
 
     # Extract vouchers from window.prestashop.cart.vouchers.added
@@ -303,32 +309,73 @@ async def _extract_auto_cart_rules_from_page(
     cart_rules: list[AutoCartRule] = []
 
     # vouchers_data could be a list or dict depending on PrestaShop version
-    vouchers_list = vouchers_data if isinstance(vouchers_data, list) else [vouchers_data]
+    # If it's a dict (object), extract the values (voucher objects)
+    if isinstance(vouchers_data, dict):
+        # Check if it looks like {"id1": {voucher}, "id2": {voucher}} format
+        # vs a single voucher object {"id_cart_rule": "123", "name": "..."}
+        if all(isinstance(v, dict) for v in vouchers_data.values()):
+            vouchers_list = list(vouchers_data.values())
+        else:
+            # Single voucher object
+            vouchers_list = [vouchers_data]
+    elif isinstance(vouchers_data, list):
+        vouchers_list = vouchers_data
+    else:
+        vouchers_list = [vouchers_data]
 
     for voucher in vouchers_list:
         try:
             # Extract fields from voucher object
             rule_id = voucher.get("id_cart_rule") or voucher.get("id")
-            rule_name = voucher.get("code") or voucher.get("name", "UNKNOWN")
+            # Priorize name over code (code is often empty for auto-applied rules)
+            rule_name = voucher.get("name") or voucher.get("code") or "UNKNOWN"
 
             # Amount could be in different fields
-            amount_str = (
+            amount_raw = (
                 voucher.get("value")
                 or voucher.get("reduction_amount")
                 or voucher.get("reduction_percent")
-                or "0"
+                or 0
             )
 
-            # Parse amount
-            from src.utils.price_parser import parse_price_string
-            amount = parse_price_string(str(amount_str))
-            if amount is None:
-                amount = 0.0
+            # Parse amount - handle both numeric values and string formats
+            if isinstance(amount_raw, (int, float)):
+                # Already a number - use directly
+                amount = float(amount_raw)
+            else:
+                # String format - could be "15%" or "5.00"
+                amount_str = str(amount_raw).rstrip('%').strip()
+                try:
+                    # Try direct conversion first (works for "15" from "15%" or "5.00")
+                    amount = float(amount_str)
+                except ValueError:
+                    # Fallback to price parser for complex formats
+                    from src.utils.price_parser import parse_price_string
+                    amount = parse_price_string(str(amount_raw))
+                    if amount is None:
+                        amount = 0.0
 
             # Determine discount type
-            discount_type = "amount"  # Default
-            if "reduction_percent" in voucher or "%" in str(amount_str):
+            # Check if reduction_percent has a value > 0
+            reduction_percent_raw = voucher.get("reduction_percent", 0) or 0
+            if isinstance(reduction_percent_raw, str):
+                # Handle percentage strings like "15%"
+                reduction_percent_str = reduction_percent_raw.rstrip('%').strip()
+                try:
+                    reduction_percent_val = float(reduction_percent_str)
+                except ValueError:
+                    reduction_percent_val = 0.0
+            else:
+                reduction_percent_val = float(reduction_percent_raw)
+
+            has_percent = reduction_percent_val > 0 or "%" in str(amount_raw)
+
+            # If reduction_percent is set and > 0, it's always a percentage
+            if has_percent:
                 discount_type = "percentage"
+            else:
+                # Otherwise it's an amount (Euro/currency)
+                discount_type = "amount"
 
             # Validate rule_id
             if not rule_id or not isinstance(rule_id, int | str):
@@ -377,7 +424,6 @@ async def detect_manual_code_input(url: str, timeout: int = 30000) -> bool:
     logger.debug(f"Detecting manual code input on: {url}")
 
     async with async_playwright() as p:
-        browser: Browser | None = None
         try:
             # Launch browser
             browser = await p.chromium.launch(headless=True)
@@ -400,9 +446,7 @@ async def detect_manual_code_input(url: str, timeout: int = 30000) -> bool:
         except Exception as e:
             logger.error(f"Failed to detect manual code input on {url}: {e}")
             raise
-        finally:
-            if browser:
-                await browser.close()
+        # No finally needed - async_playwright() context manager handles cleanup
 
 
 async def _check_manual_code_input_on_page(page: Page) -> bool:

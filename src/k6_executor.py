@@ -56,14 +56,19 @@ class K6Executor:
         if not script_path.exists():
             raise FileNotFoundError(f"K6 script not found: {script_path}")
 
-        # Create temporary file for JSON output
+        # Create temporary files for JSON output and summary
         with tempfile.NamedTemporaryFile(
             mode="w+", suffix=".json", delete=False
         ) as json_output:
             json_output_path = Path(json_output.name)
 
+        with tempfile.NamedTemporaryFile(
+            mode="w+", suffix="-summary.json", delete=False
+        ) as summary_output:
+            summary_output_path = Path(summary_output.name)
+
         try:
-            # Run K6 with JSON output
+            # Run K6 with JSON output and summary export
             start_time = self._get_current_time()
 
             cmd = [
@@ -71,6 +76,8 @@ class K6Executor:
                 "run",
                 "--out",
                 f"json={json_output_path}",
+                "--summary-export",
+                str(summary_output_path),
                 str(script_path),
             ]
 
@@ -105,8 +112,8 @@ class K6Executor:
                         error_message=error_msg,
                     )
 
-            # Parse JSON output
-            metrics = self._parse_k6_output(json_output_path)
+            # Parse summary output (contains aggregated metrics)
+            metrics = self._parse_k6_summary(summary_output_path)
 
             # Determine if thresholds failed
             threshold_failed = result.returncode != 0
@@ -140,12 +147,112 @@ class K6Executor:
                 f"K6 binary not found: {self.k6_binary}. Install K6: https://k6.io/docs/get-started/installation/"
             ) from exc
         finally:
-            # Clean up temporary JSON file
-            if json_output_path.exists():
-                try:
-                    json_output_path.unlink()
-                except Exception as e:
-                    logger.warning(f"Failed to delete temp file: {e}")
+            # Clean up temporary files
+            # TEMPORARILY DISABLED FOR DEBUGGING
+            if False:
+                for temp_file in [json_output_path, summary_output_path]:
+                    if temp_file.exists():
+                        try:
+                            temp_file.unlink()
+                        except Exception as e:
+                            logger.warning(f"Failed to delete temp file: {e}")
+            else:
+                logger.debug(f"JSON output kept at: {json_output_path}")
+                logger.debug(f"Summary kept at: {summary_output_path}")
+
+    def _parse_k6_summary(self, summary_path: Path) -> K6Metrics:
+        """Parse K6 summary JSON to extract metrics.
+
+        K6 summary export provides pre-aggregated metrics in a clean JSON format.
+
+        Args:
+            summary_path: Path to K6 summary JSON file
+
+        Returns:
+            K6Metrics with parsed values
+
+        Raises:
+            K6ExecutionError: If parsing fails
+        """
+        try:
+            with open(summary_path, encoding="utf-8") as f:
+                summary = json.load(f)
+
+            metrics = summary.get("metrics", {})
+
+            # Extract http_req_duration statistics
+            duration = metrics.get("http_req_duration", {})
+
+            # Extract http_reqs counter
+            http_reqs = metrics.get("http_reqs", {})
+
+            # Extract http_req_failed rate
+            failed = metrics.get("http_req_failed", {})
+
+            # Extract iterations counter
+            iterations = metrics.get("iterations", {})
+
+            # Extract VUs
+            vus_max = metrics.get("vus_max", {})
+
+            # Extract data transferred
+            data_received = metrics.get("data_received", {})
+            data_sent = metrics.get("data_sent", {})
+
+            # Build metrics data
+            metrics_data = {
+                # Response time metrics (in milliseconds)
+                "http_req_duration_min": duration.get("min", 0),
+                "http_req_duration_avg": duration.get("avg", 0),
+                "http_req_duration_p95": duration.get("p(95)", 0),
+                "http_req_duration_p99": duration.get("p(99)", 0),
+                "http_req_duration_max": duration.get("max", 0),
+                # Request counts
+                "http_req_total_count": int(http_reqs.get("count", 0)),
+                "http_req_failed_count": int(failed.get("passes", 0)),  # passes = # of failures
+                # Rates
+                "http_req_failed_rate": failed.get("value", 0),
+                # Checks rate (from root_group if present)
+                "checks_rate": self._extract_checks_rate(summary.get("root_group", {})),
+                # Virtual users
+                "vus_max": int(vus_max.get("value", 0)),
+                # Iterations
+                "iterations": int(iterations.get("count", 0)),
+                # Data transfer
+                "data_received_bytes": int(data_received.get("count", 0)),
+                "data_sent_bytes": int(data_sent.get("count", 0)),
+            }
+
+            return K6Metrics(**metrics_data)
+
+        except Exception as exc:
+            raise K6ExecutionError(f"Failed to parse K6 summary: {exc}") from exc
+
+    def _extract_checks_rate(self, root_group: dict[str, Any]) -> float:
+        """Extract checks pass rate from root_group.
+
+        Args:
+            root_group: K6 summary root_group object
+
+        Returns:
+            Checks pass rate (0.0 to 1.0), defaults to 1.0 if no checks
+        """
+        checks = root_group.get("checks", {})
+        if not checks:
+            return 1.0
+
+        total_passes = 0
+        total_fails = 0
+
+        for check_data in checks.values():
+            total_passes += check_data.get("passes", 0)
+            total_fails += check_data.get("fails", 0)
+
+        total = total_passes + total_fails
+        if total == 0:
+            return 1.0
+
+        return total_passes / total
 
     def _parse_k6_output(self, json_path: Path) -> K6Metrics:
         """Parse K6 JSON output to extract metrics.

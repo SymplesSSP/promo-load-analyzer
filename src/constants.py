@@ -82,8 +82,8 @@ HTTP_SERVER_ERROR: Final[int] = 500
 SUCCESS_STATUS_CODES: Final[tuple[int, ...]] = (HTTP_OK, HTTP_CREATED)
 
 # Regex Patterns for Page Detection
-REGEX_PRODUCT_PAGE: Final[str] = r"/(\d+)-[\w-]+\.html"  # Captures product ID
-REGEX_CATEGORY_PAGE: Final[str] = r"/[\w-]+/(\d+)"  # Captures category ID
+REGEX_PRODUCT_PAGE: Final[str] = r"/(\d+)(?:-\d+)?-[\w-]+"  # Captures product ID (with optional attribute ID, with or without .html)
+REGEX_CATEGORY_PAGE: Final[str] = r"/[\w-]+/(\d+)(?!-\d)"  # Captures category ID (but not product URLs like /cat/123-456-name)
 REGEX_CATALOG_PAGE: Final[str] = r"/(nouveautes|promotions|meilleures-ventes)"
 REGEX_HOMEPAGE: Final[str] = r"^https?://[^/]+/?$"  # Matches root URL only
 

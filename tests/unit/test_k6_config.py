@@ -177,14 +177,16 @@ class TestIntensityConfig:
         assert stages[2].target == 0
 
     def test_to_stages_short_duration(self) -> None:
-        """Test stages for short duration test."""
+        """Test stages for short duration test (≤2 min uses simplified staging)."""
         config = IntensityConfig(vus=50, duration_minutes=2)
         stages = config.to_stages()
 
-        assert len(stages) == 3
-        # Ramp up is at least 1 minute
+        # Short tests use simplified 2-stage approach (sustain + ramp-down)
+        assert len(stages) == 2
+        assert stages[0].duration == "2m"
         assert stages[0].target == 50
-        assert stages[2].target == 0
+        assert stages[1].duration == "30s"
+        assert stages[1].target == 0
 
 
 class TestLoadTestConfig:
@@ -300,16 +302,17 @@ class TestLoadTestConfig:
         assert threshold_config.http_req_failed[0].threshold == "rate<0.10"
 
     def test_get_stages(self) -> None:
-        """Test getting K6 stages."""
+        """Test getting K6 stages (LIGHT uses 2-stage simplified approach)."""
         config = LoadTestConfig(
             url="https://preprod.ipln.fr/",
             page_type="homepage",
             intensity=Intensity.LIGHT,
         )
         stages = config.get_stages()
-        assert len(stages) == 3
+        # LIGHT (2 min) uses simplified staging: sustain + ramp-down
+        assert len(stages) == 2
         assert stages[0].target == 50
-        assert stages[2].target == 0
+        assert stages[1].target == 0
 
     def test_all_page_types(self) -> None:
         """Test all supported page types."""

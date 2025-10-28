@@ -130,6 +130,13 @@ For more information: https://github.com/your-repo/promo-load-analyzer
         help="Maximum test duration in seconds (default: 3600 = 1 hour)",
     )
 
+    # Monitoring options
+    parser.add_argument(
+        "--enable-dashboard",
+        action="store_true",
+        help="Enable real-time Grafana dashboard (requires Docker running)",
+    )
+
     # Utility options
     parser.add_argument(
         "--check-deps",
@@ -198,6 +205,7 @@ async def run_analysis(args: argparse.Namespace) -> int:
         mode=mode,
         k6_binary=args.k6_binary,
         timeout_seconds=args.timeout,
+        enable_influxdb=args.enable_dashboard,
     )
 
     # Check dependencies

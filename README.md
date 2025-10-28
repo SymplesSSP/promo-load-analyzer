@@ -73,6 +73,13 @@ This tool helps you **validate capacity before going live**.
 - **Technical Details** - K6 metrics, thresholds, iterations
 - **Glossary** - Non-technical explanations for stakeholders
 
+### 📊 Real-Time Dashboard (NEW)
+- **Grafana + InfluxDB** - Live monitoring with Docker/OrbStack
+- **Zero-config setup** - Automated provisioning and datasource config
+- **Test Filtering** - Filter by test ID, environment, intensity
+- **Response Time Gauges** - Visual green/yellow/red indicators
+- **Trend Analysis** - p95/p99 response times over time
+
 ---
 
 ## 🚀 Quick Start
@@ -158,6 +165,7 @@ python -m src.cli https://site.com/category \
 | `--env` | Environment (safety mode) | `preprod` | `preprod`, `prod` |
 | `--intensity` | Test load intensity | `medium` | `light`, `medium`, `heavy` |
 | `--mode` | Test mode | `read_only` | `read_only`, `full` |
+| `--enable-dashboard` | Enable real-time Grafana dashboard | `False` | Flag |
 | `--output` | Report output path | `./report.md` | Any file path |
 | `--verbose` | Enable debug logging | `False` | `True`/`False` |
 
@@ -175,6 +183,40 @@ python -m src.cli https://site.com/category \
 |------|-------------|------------|
 | **read_only** | Safe browsing only | GET requests, page views |
 | **full** | Realistic user behavior | Add to cart, apply promos |
+
+### Real-Time Dashboard
+
+Enable live monitoring with Grafana to see metrics in real-time:
+
+```bash
+# 1. Start monitoring stack (first time or if stopped)
+./scripts/start_monitoring.sh
+
+# 2. Run test with dashboard enabled
+python -m src.cli https://preprod.site.com/promo \
+  --enable-dashboard
+
+# 3. View real-time metrics
+# Dashboard opens automatically at: http://localhost:3000
+# Login: admin / admin
+```
+
+**Dashboard Features:**
+- Live response time gauges (p95, p99)
+- Active virtual users graph
+- Error rate monitoring
+- Test history and filtering
+- Export data for reports
+
+**Management Commands:**
+```bash
+./scripts/start_monitoring.sh   # Start Grafana + InfluxDB
+./scripts/stop_monitoring.sh    # Stop monitoring (preserves data)
+./scripts/status_monitoring.sh  # Check health
+./scripts/test_monitoring.sh    # Run diagnostics
+```
+
+See [CLI_SETUP_GUIDE.md](CLI_SETUP_GUIDE.md) and [MONITORING_QUICK_START.md](MONITORING_QUICK_START.md) for full documentation.
 
 ---
 

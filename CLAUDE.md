@@ -2,9 +2,16 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Recent Changes & Fixes (2025-10-27)
+## Recent Changes & Fixes
 
-### Critical Bug Fixes Deployed
+### 2025-10-28 - Real-Time Dashboard Implementation
+1. **Grafana + InfluxDB Dashboard** - Implemented real-time monitoring with Docker
+2. **Custom K6 Binary** - Built k6-custom with xk6-output-influxdb extension for InfluxDB v2 support
+3. **Automated CLI Scripts** - Created start/stop/status/test monitoring scripts
+4. **Dashboard Provisioning** - Auto-configured Grafana datasource and K6 Load Testing dashboard
+5. **Test Tagging** - Added testid, environment, intensity, page_type tags for filtering
+
+### 2025-10-27 - Critical Bug Fixes Deployed
 1. **K6 Metrics Parsing** - Added `--summary-export` flag to properly extract aggregated metrics
 2. **K6 Staging Config** - Fixed 0-minute sustain phase for short duration tests (≤2 min)
 3. **Promo Cart Detection** - Implemented active polling and multi-strategy clicking for reliable detection
@@ -13,12 +20,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Current Status
 - ✅ **229/229 unit tests passing** (100%)
+- ✅ **Real-time Grafana dashboard** operational with InfluxDB v2
 - ✅ **Validated on production** (ipln.fr) and staging (recette.ipln.fr)
 - ✅ **SONY GM-1 promo detected** correctly (300€ auto cart rule)
 - ✅ **Panasonic S5 II promo detected** correctly (400€ striked price with Unicode spaces)
-- ✅ **Grade A performance** (97.1/100) on full test with cart
+- ✅ **Grade A performance** (95.5/100) on full test with dashboard enabled
 - ✅ **French price formats** fully supported (U+00A0, U+202F, U+2009)
-- ✅ **README enhanced** with GitHub-standard styling and badges
+- ✅ **Automated monitoring stack** with Docker/OrbStack
 
 ## Project Overview
 
@@ -233,6 +241,82 @@ PRESTASHOP_BASE_URL=https://ipln.fr
 MAX_USERS_DEFAULT=200
 K6_OUTPUT_DIR=/tmp/k6_results
 ```
+
+## Real-Time Monitoring (Grafana Dashboard)
+
+### Quick Start
+```bash
+# 1. Start monitoring stack (Grafana + InfluxDB)
+./scripts/start_monitoring.sh
+
+# 2. Run test with dashboard enabled
+python -m src.cli \
+  --url "https://recette.ipln.fr/your-url" \
+  --enable-dashboard
+
+# 3. View real-time metrics
+# Dashboard opens automatically at: http://localhost:3000
+```
+
+### Monitoring Stack Architecture
+- **InfluxDB v2** (port 8086): Time-series database for K6 metrics
+- **Grafana** (port 3000): Real-time visualization dashboard
+- **Custom K6 Binary** (`bin/k6-custom`): K6 with xk6-output-influxdb extension
+
+### Available Scripts
+```bash
+./scripts/start_monitoring.sh   # Start Grafana + InfluxDB
+./scripts/stop_monitoring.sh    # Stop monitoring (preserves data)
+./scripts/status_monitoring.sh  # Check services health
+./scripts/test_monitoring.sh    # Run health checks
+```
+
+### Dashboard Features
+- **Response Time Gauge (p95)**: Green < 1s, Yellow 1-2s, Red > 2s
+- **Virtual Users Graph**: Active VUs during test
+- **Error Rate Gauge**: Green < 1%, Yellow 1-5%, Red > 5%
+- **Response Time Trends**: p95, p99, average over time
+- **Test Filtering**: Filter by testid, environment, intensity, page_type
+
+### Technical Details
+**Why custom K6 binary?**
+- Native K6 (`--out influxdb=`) only supports InfluxDB v1.x
+- InfluxDB v2.x requires xk6-output-influxdb extension
+- Built with: `xk6 build --with github.com/grafana/xk6-output-influxdb`
+
+**Environment Variables** (auto-configured in k6_executor.py):
+```bash
+K6_INFLUXDB_ORGANIZATION=promo-analyzer
+K6_INFLUXDB_BUCKET=k6
+K6_INFLUXDB_TOKEN=my-super-secret-token
+K6_INFLUXDB_ADDR=http://localhost:8086
+K6_INFLUXDB_PUSH_INTERVAL=1s
+```
+
+**Test Tags** (auto-added for filtering):
+- `testid`: Unique test identifier (e.g., test_20251028_095238_b5a7fe40)
+- `environment`: prod / preprod
+- `intensity`: light / medium / heavy
+- `page_type`: product / homepage / category / landing
+
+### Troubleshooting
+**Dashboard shows "No data":**
+1. Verify monitoring is running: `./scripts/status_monitoring.sh`
+2. Check test launched with `--enable-dashboard` flag
+3. Verify custom K6 binary exists: `ls -la bin/k6-custom`
+4. Check InfluxDB connection: `curl http://localhost:8086/health`
+
+**Build custom K6 binary manually:**
+```bash
+go install go.k6.io/xk6/cmd/xk6@latest
+xk6 build --with github.com/grafana/xk6-output-influxdb --output ./bin/k6-custom
+```
+
+### Documentation
+- **Quick Start**: `MONITORING_QUICK_START.md`
+- **CLI Setup Guide**: `CLI_SETUP_GUIDE.md`
+- **Technical Details**: `docs/GRAFANA_DASHBOARD_GUIDE.md`
+- **Daily Usage**: `monitoring/README.md`
 
 ## Output Format
 

@@ -1,0 +1,7 @@
+# Ignore monitoring data
+influxdb-data/
+influxdb-config/
+grafana-data/
+
+# Keep configuration files
+!grafana-provisioning/

@@ -1,10 +1,13 @@
 """K6 load test executor and results parser."""
 
 import json
+import os
 import subprocess
 import tempfile
+import uuid
+from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from loguru import logger
 
@@ -25,15 +28,29 @@ class K6Executor:
         self,
         k6_binary: str = "k6",
         timeout_seconds: int = 3600,
+        enable_influxdb: bool = False,
+        influxdb_url: str = "http://localhost:8086",
     ) -> None:
         """Initialize K6 executor.
 
         Args:
             k6_binary: Path to K6 binary (default: "k6" in PATH)
             timeout_seconds: Maximum execution time in seconds (default: 1 hour)
+            enable_influxdb: Enable real-time metrics to InfluxDB (default: False)
+            influxdb_url: InfluxDB URL (default: http://localhost:8086)
         """
         self.k6_binary = k6_binary
         self.timeout_seconds = timeout_seconds
+        self.enable_influxdb = enable_influxdb
+        self.influxdb_url = influxdb_url
+
+        # If InfluxDB enabled, use custom K6 binary with xk6-influxdb extension
+        if self.enable_influxdb:
+            project_root = Path(__file__).parent.parent
+            custom_k6 = project_root / "bin" / "k6-custom"
+            if custom_k6.exists():
+                self.k6_binary = str(custom_k6)
+                logger.debug(f"Using custom K6 binary: {self.k6_binary}")
 
     def execute_script(
         self,
@@ -71,6 +88,9 @@ class K6Executor:
             # Run K6 with JSON output and summary export
             start_time = self._get_current_time()
 
+            # Generate unique test ID for Grafana filtering
+            test_id = self._generate_test_id(config)
+
             cmd = [
                 self.k6_binary,
                 "run",
@@ -78,10 +98,36 @@ class K6Executor:
                 f"json={json_output_path}",
                 "--summary-export",
                 str(summary_output_path),
-                str(script_path),
             ]
 
+            # Add InfluxDB output if enabled
+            if self.enable_influxdb:
+                cmd.extend(["--out", f"xk6-influxdb={self.influxdb_url}"])
+                # Add tags for filtering in Grafana
+                cmd.extend([
+                    "--tag", f"testid={test_id}",
+                    "--tag", f"environment={config.environment.value}",
+                    "--tag", f"intensity={config.intensity.value}",
+                    "--tag", f"page_type={config.page_type}",  # page_type is already a string
+                ])
+                logger.info(f"📊 Dashboard: http://localhost:3000/d/k6-load-testing?var-testid={test_id}")
+
+            cmd.append(str(script_path))
+
             logger.info(f"Executing K6: {' '.join(cmd)}")
+
+            # Prepare environment variables
+            env = os.environ.copy()
+            if self.enable_influxdb:
+                # InfluxDB v2 environment variables for xk6-influxdb extension
+                env.update({
+                    "K6_INFLUXDB_ORGANIZATION": "promo-analyzer",
+                    "K6_INFLUXDB_BUCKET": "k6",
+                    "K6_INFLUXDB_TOKEN": "my-super-secret-token",
+                    "K6_INFLUXDB_ADDR": self.influxdb_url,
+                    "K6_INFLUXDB_PUSH_INTERVAL": "1s",
+                    "K6_INFLUXDB_INSECURE": "false",
+                })
 
             result = subprocess.run(
                 cmd,
@@ -89,6 +135,7 @@ class K6Executor:
                 text=True,
                 timeout=self.timeout_seconds,
                 check=False,  # Don't raise on non-zero exit
+                env=env,
             )
 
             end_time = self._get_current_time()
@@ -395,3 +442,16 @@ class K6Executor:
             return result.returncode == 0
         except (FileNotFoundError, subprocess.TimeoutExpired):
             return False
+
+    def _generate_test_id(self, config: LoadTestConfig) -> str:
+        """Generate unique test ID for Grafana filtering.
+
+        Args:
+            config: Load test configuration
+
+        Returns:
+            Unique test ID (e.g., "test_20251028_143022_a3f8")
+        """
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        short_uuid = str(uuid.uuid4())[:8]
+        return f"test_{timestamp}_{short_uuid}"

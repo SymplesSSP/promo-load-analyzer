@@ -1,0 +1,151 @@
+═══════════════════════════════════════════════════════════════
+  ✅ MONITORING GRAFANA - INSTALLATION TERMINÉE
+═══════════════════════════════════════════════════════════════
+
+📦 FICHIERS CRÉÉS
+───────────────────────────────────────────────────────────────
+
+Configuration Docker :
+  • docker-compose.monitoring.yml
+  • monitoring/grafana-provisioning/datasources/influxdb.yml
+  • monitoring/grafana-provisioning/dashboards/k6-dashboard.json
+  • monitoring/.gitignore
+
+Scripts CLI (automatisés) :
+  • scripts/start_monitoring.sh      → Démarrer monitoring
+  • scripts/stop_monitoring.sh       → Arrêter monitoring
+  • scripts/status_monitoring.sh     → Voir status
+  • scripts/test_monitoring.sh       → Tester installation
+
+Code Python (modifié) :
+  • src/k6_executor.py               → Support InfluxDB + tags
+  • src/main.py                      → Paramètre enable_influxdb
+  • src/cli.py                       → Option --enable-dashboard
+
+Documentation :
+  • CLI_SETUP_GUIDE.md               → Guide complet CLI
+  • MONITORING_QUICK_START.md        → Quick start (1 page)
+  • monitoring/README.md             → Usage quotidien
+  • docs/GRAFANA_DASHBOARD_GUIDE.md  → Guide technique Phase 2
+
+
+═══════════════════════════════════════════════════════════════
+  🚀 DÉMARRAGE RAPIDE (3 COMMANDES)
+═══════════════════════════════════════════════════════════════
+
+1. Installer Docker Desktop (si pas fait)
+   → https://www.docker.com/products/docker-desktop/
+   → Ou : brew install --cask docker
+
+2. Démarrer monitoring
+   → cd "/Volumes/GitHub_SSD/Projet K6"
+   → ./scripts/start_monitoring.sh
+
+3. Lancer test avec dashboard
+   → python -m src.cli \
+       --url "https://preprod.ipln.fr/votre-url" \
+       --enable-dashboard
+
+
+═══════════════════════════════════════════════════════════════
+  📊 CE QUE VOUS OBTENEZ
+═══════════════════════════════════════════════════════════════
+
+✅ Dashboard temps réel (http://localhost:3000)
+   • Jauge temps de réponse (vert/jaune/rouge)
+   • Graphique utilisateurs actifs
+   • Taux d'erreur en %
+   • Historique complet du test
+
+✅ 100% Local
+   • Aucune connexion internet requise
+   • Données sur votre Mac
+   • Aucun abonnement
+
+✅ 100% Gratuit
+   • Docker : gratuit
+   • InfluxDB : gratuit (OSS)
+   • Grafana : gratuit (OSS)
+
+✅ Scripts Automatisés
+   • start_monitoring.sh   → Tout setup automatique
+   • stop_monitoring.sh    → Arrêt propre
+   • status_monitoring.sh  → État services
+   • test_monitoring.sh    → Vérification santé
+
+
+═══════════════════════════════════════════════════════════════
+  🎯 COMMANDES ESSENTIELLES
+═══════════════════════════════════════════════════════════════
+
+Démarrer :
+  ./scripts/start_monitoring.sh
+
+Arrêter :
+  ./scripts/stop_monitoring.sh
+
+Status :
+  ./scripts/status_monitoring.sh
+
+Test santé :
+  ./scripts/test_monitoring.sh
+
+Lancer test :
+  python -m src.cli --url "..." --enable-dashboard
+
+Voir logs :
+  docker logs promo-grafana
+  docker logs promo-influxdb
+
+
+═══════════════════════════════════════════════════════════════
+  📚 DOCUMENTATION
+═══════════════════════════════════════════════════════════════
+
+Pour CLI :               CLI_SETUP_GUIDE.md
+Pour usage quotidien :   monitoring/README.md
+Pour quick start :       MONITORING_QUICK_START.md
+Pour Phase 2 complet :   docs/GRAFANA_DASHBOARD_GUIDE.md
+
+
+═══════════════════════════════════════════════════════════════
+  💰 COÛTS
+═══════════════════════════════════════════════════════════════
+
+Total : 0 €
+
+  • Docker Desktop : GRATUIT
+  • InfluxDB OSS : GRATUIT
+  • Grafana OSS : GRATUIT
+  • Hébergement : Local (votre Mac)
+  • Abonnement : AUCUN
+
+
+═══════════════════════════════════════════════════════════════
+  🎬 PROCHAINES ÉTAPES
+═══════════════════════════════════════════════════════════════
+
+1. Installer Docker Desktop (si pas fait)
+
+2. Tester l'installation :
+   cd "/Volumes/GitHub_SSD/Projet K6"
+   ./scripts/start_monitoring.sh
+   ./scripts/test_monitoring.sh
+
+3. Lancer premier test :
+   python -m src.cli \
+     --url "https://preprod.ipln.fr/photo-video/3867-sony.html" \
+     --intensity medium \
+     --enable-dashboard
+
+4. Voir dashboard :
+   http://localhost:3000 (admin/admin)
+
+
+═══════════════════════════════════════════════════════════════
+
+Prêt à démarrer ? 🚀
+
+  ./scripts/start_monitoring.sh
+
+═══════════════════════════════════════════════════════════════

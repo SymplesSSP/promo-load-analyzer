@@ -38,6 +38,7 @@ class PromoLoadAnalyzer:
         mode: TestMode = TestMode.READ_ONLY,
         k6_binary: str = "k6",
         timeout_seconds: int = 3600,
+        enable_influxdb: bool = False,
     ) -> None:
         """Initialize the analyzer.
 
@@ -47,16 +48,19 @@ class PromoLoadAnalyzer:
             mode: Test mode (READ_ONLY or FULL)
             k6_binary: Path to K6 binary
             timeout_seconds: Maximum test execution time
+            enable_influxdb: Enable real-time Grafana dashboard (requires Docker)
         """
         self.environment = environment
         self.intensity = intensity
         self.mode = mode
+        self.enable_influxdb = enable_influxdb
 
         # Initialize components
         self.k6_generator = K6ScriptGenerator()
         self.k6_executor = K6Executor(
             k6_binary=k6_binary,
             timeout_seconds=timeout_seconds,
+            enable_influxdb=enable_influxdb,
         )
         self.results_analyzer = ResultsAnalyzer()
         self.report_generator = ReportGenerator()
@@ -65,6 +69,9 @@ class PromoLoadAnalyzer:
             f"PromoLoadAnalyzer initialized: {environment.value}, "
             f"{intensity.value}, {mode.value}"
         )
+
+        if enable_influxdb:
+            logger.info("📊 Real-time dashboard enabled")
 
     async def analyze(
         self,

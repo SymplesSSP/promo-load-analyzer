@@ -4,12 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Recent Changes & Fixes
 
-### 2025-10-28 - Real-Time Dashboard Implementation
+### 2025-10-28 - Real-Time Dashboard Implementation & Cache Performance Analysis
 1. **Grafana + InfluxDB Dashboard** - Implemented real-time monitoring with Docker
 2. **Custom K6 Binary** - Built k6-custom with xk6-output-influxdb extension for InfluxDB v2 support
 3. **Automated CLI Scripts** - Created start/stop/status/test monitoring scripts
-4. **Dashboard Provisioning** - Auto-configured Grafana datasource and K6 Load Testing dashboard
+4. **Dashboard Provisioning** - Auto-configured Grafana datasource and 12-panel K6 dashboard
 5. **Test Tagging** - Added testid, environment, intensity, page_type tags for filtering
+6. **Cache Impact Analysis** - Validated on Sony Alpha 7 IV across 3 environments:
+   - PREPROD without cache: Grade B (85.5/100), p95=2413ms, ~40 users capacity
+   - PREPROD with JPrestashop cache: Grade A (96.2/100), p95=640ms, ~125 users capacity (**-73% response time, +212% capacity**)
+   - PROD with Cloudflare cache: Grade A (94.3/100), p95=943ms, ~84 users capacity
+   - **Key Finding**: Cache optimization provides 16x more performance impact than page weight optimization
 
 ### 2025-10-27 - Critical Bug Fixes Deployed
 1. **K6 Metrics Parsing** - Added `--summary-export` flag to properly extract aggregated metrics
@@ -20,11 +25,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Current Status
 - ✅ **229/229 unit tests passing** (100%)
-- ✅ **Real-time Grafana dashboard** operational with InfluxDB v2
+- ✅ **Real-time Grafana dashboard** operational with InfluxDB v2 and 12-panel layout
 - ✅ **Validated on production** (ipln.fr) and staging (recette.ipln.fr)
 - ✅ **SONY GM-1 promo detected** correctly (300€ auto cart rule)
 - ✅ **Panasonic S5 II promo detected** correctly (400€ striked price with Unicode spaces)
-- ✅ **Grade A performance** (95.5/100) on full test with dashboard enabled
+- ✅ **Sony Alpha 7 IV promo detected** correctly (2499€ → 2299€ striked price)
+- ✅ **Cache performance analysis** validated (JPrestashop vs Cloudflare impact measured)
+- ✅ **Grade A performance** (96.2/100 with cache, 85.5/100 without)
 - ✅ **French price formats** fully supported (U+00A0, U+202F, U+2009)
 - ✅ **Automated monitoring stack** with Docker/OrbStack
 

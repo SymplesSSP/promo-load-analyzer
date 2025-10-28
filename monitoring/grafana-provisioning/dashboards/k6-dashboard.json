@@ -84,7 +84,7 @@
       "targets": [
         {
           "datasource": "InfluxDB_K6",
-          "query": "from(bucket: \"k6\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"http_req_duration\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> filter(fn: (r) => r[\"testid\"] == \"${testid}\")\n  |> aggregateWindow(every: 10s, fn: quantile, column: \"_value\", q: 0.95)\n  |> keep(columns: [\"_time\", \"_value\"])",
+          "query": "from(bucket: \"k6\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"http_req_duration\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> filter(fn: (r) => r[\"testid\"] == \"${testid}\")\n  |> aggregateWindow(every: 10s, fn: (tables=<-, column) => tables |> quantile(column: column, q: 0.95))\n  |> keep(columns: [\"_time\", \"_value\"])",
           "refId": "A"
         }
       ],
@@ -354,12 +354,12 @@
       "targets": [
         {
           "datasource": "InfluxDB_K6",
-          "query": "from(bucket: \"k6\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"http_req_duration\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> filter(fn: (r) => r[\"testid\"] == \"${testid}\")\n  |> aggregateWindow(every: 5s, fn: quantile, column: \"_value\", q: 0.95)\n  |> keep(columns: [\"_time\", \"_value\"])\n  |> map(fn: (r) => ({ r with _field: \"p95\" }))",
+          "query": "from(bucket: \"k6\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"http_req_duration\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> filter(fn: (r) => r[\"testid\"] == \"${testid}\")\n  |> aggregateWindow(every: 5s, fn: (tables=<-, column) => tables |> quantile(column: column, q: 0.95))\n  |> keep(columns: [\"_time\", \"_value\"])\n  |> map(fn: (r) => ({ r with _field: \"p95\" }))",
           "refId": "A"
         },
         {
           "datasource": "InfluxDB_K6",
-          "query": "from(bucket: \"k6\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"http_req_duration\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> filter(fn: (r) => r[\"testid\"] == \"${testid}\")\n  |> aggregateWindow(every: 5s, fn: quantile, column: \"_value\", q: 0.99)\n  |> keep(columns: [\"_time\", \"_value\"])\n  |> map(fn: (r) => ({ r with _field: \"p99\" }))",
+          "query": "from(bucket: \"k6\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"http_req_duration\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> filter(fn: (r) => r[\"testid\"] == \"${testid}\")\n  |> aggregateWindow(every: 5s, fn: (tables=<-, column) => tables |> quantile(column: column, q: 0.99))\n  |> keep(columns: [\"_time\", \"_value\"])\n  |> map(fn: (r) => ({ r with _field: \"p99\" }))",
           "refId": "B"
         },
         {
